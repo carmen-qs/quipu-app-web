@@ -1,0 +1,298 @@
+// ============================================================
+// schema.prisma — Quipu Financial App
+// PostgreSQL + Prisma ORM
+// Versión: 1.0.0
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+/// Tipo de movimiento financiero
+enum MovementType {
+  INCOME  @map("INCOME")  // Ingreso
+  EXPENSE @map("EXPENSE") // Gasto
+
+  @@map("movement_type")
+}
+
+/// Fuente de registro del movimiento
+enum MovementSource {
+  AI_PARSED @map("AI_PARSED") // Registrado mediante parsing de IA
+  MANUAL    @map("MANUAL")    // Registrado manualmente por el usuario
+
+  @@map("movement_source")
+}
+
+/// Tipo de movimiento que aplica a una categoría
+enum CategoryType {
+  INCOME  @map("INCOME")
+  EXPENSE @map("EXPENSE")
+
+  @@map("category_type")
+}
+
+/// Estado del ciclo de vida de una meta de ahorro
+enum GoalStatus {
+  ACTIVE    @map("ACTIVE")    // Meta activa en progreso
+  COMPLETED @map("COMPLETED") // Meta alcanzada al 100%
+  ARCHIVED  @map("ARCHIVED")  // Meta archivada por el usuario
+  CANCELLED @map("CANCELLED") // Meta cancelada antes de completarse
+
+  @@map("goal_status")
+}
+
+/// Tipos de eventos registrados en auditoría
+enum AuditAction {
+  // Autenticación
+  USER_REGISTERED      @map("USER_REGISTERED")
+  LOGIN_SUCCESS        @map("LOGIN_SUCCESS")
+  LOGIN_FAILED         @map("LOGIN_FAILED")
+  LOGOUT               @map("LOGOUT")
+  LOGOUT_ALL           @map("LOGOUT_ALL")
+  TOKEN_REFRESHED      @map("TOKEN_REFRESHED")
+  TOKEN_REVOKED        @map("TOKEN_REVOKED")
+
+  // Perfil
+  PROFILE_UPDATED      @map("PROFILE_UPDATED")
+  PASSWORD_CHANGED     @map("PASSWORD_CHANGED")
+
+  // Movimientos
+  MOVEMENT_CREATED     @map("MOVEMENT_CREATED")
+  MOVEMENT_UPDATED     @map("MOVEMENT_UPDATED")
+  MOVEMENT_DELETED     @map("MOVEMENT_DELETED")
+
+  // Metas
+  GOAL_CREATED         @map("GOAL_CREATED")
+  GOAL_UPDATED         @map("GOAL_UPDATED")
+  GOAL_DELETED         @map("GOAL_DELETED")
+  GOAL_COMPLETED       @map("GOAL_COMPLETED")
+  GOAL_ARCHIVED        @map("GOAL_ARCHIVED")
+  GOAL_CONTRIBUTION_ADDED @map("GOAL_CONTRIBUTION_ADDED")
+  GOAL_CONTRIBUTION_DELETED @map("GOAL_CONTRIBUTION_DELETED")
+
+  // Sistema
+  AI_PARSING_FAILED    @map("AI_PARSING_FAILED")
+  SYSTEM_ERROR         @map("SYSTEM_ERROR")
+
+  @@map("audit_action")
+}
+
+// ============================================================
+// MODELOS
+// ============================================================
+
+/// Usuarios registrados en el sistema.
+/// Entidad raíz de la jerarquía de datos.
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String   @db.VarChar(100)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relaciones
+  refreshTokens     RefreshToken[]
+  movements         Movement[]
+  savingGoals       SavingGoal[]
+  categories        Category[]
+  goalContributions GoalContribution[]
+  auditLogs         AuditLog[]
+
+  @@index([email], name: "idx_users_email")
+  @@index([isActive], name: "idx_users_is_active")
+  @@map("users")
+}
+
+/// Tokens de renovación de sesión.
+/// Soporta múltiples sesiones activas por usuario.
+model RefreshToken {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  tokenHash   String    @unique @map("token_hash") @db.VarChar(255)
+  family      String    @default(dbgenerated("gen_random_uuid()")) @map("family") @db.Uuid
+  isRevoked   Boolean   @default(false) @map("is_revoked")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  deviceInfo  String?   @map("device_info") @db.VarChar(500)
+  ipAddress   String?   @map("ip_address") @db.VarChar(45) // IPv6 max 45 chars
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  lastUsedAt  DateTime? @map("last_used_at") @db.Timestamptz
+
+  // Relaciones
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], name: "idx_refresh_tokens_user_id")
+  @@index([expiresAt], name: "idx_refresh_tokens_expires_at")
+  @@index([userId, expiresAt], name: "idx_refresh_tokens_user_active")
+  @@map("refresh_tokens")
+}
+
+/// Categorías de movimientos financieros.
+/// Soporta categorías del sistema (user_id = null) y personalizadas.
+model Category {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String?      @map("user_id") @db.Uuid
+  name        String       @db.VarChar(100)
+  description String?      @db.VarChar(255)
+  icon        String?      @db.VarChar(100)
+  color       String?      @default("#6B7280") @db.Char(7)
+  type        CategoryType
+  isSystem    Boolean      @default(false) @map("is_system")
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relaciones
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movements Movement[]
+
+  @@unique([userId, name, type], name: "categories_name_user_unique")
+  @@index([userId], name: "idx_categories_user_id")
+  @@index([type, isActive], name: "idx_categories_system")
+  @@index([userId, type], name: "idx_categories_user_type")
+  @@map("categories")
+}
+
+/// Movimientos financieros (ingresos y gastos).
+/// Entidad transaccional central del sistema.
+model Movement {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String         @map("user_id") @db.Uuid
+  categoryId   String         @map("category_id") @db.Uuid
+  type         MovementType
+  amount       Decimal        @db.Decimal(12, 2)
+  description  String         @db.VarChar(500)
+  originalText String?        @map("original_text") @db.Text
+  movementDate DateTime       @default(dbgenerated("CURRENT_DATE")) @map("movement_date") @db.Date
+  source       MovementSource @default(MANUAL)
+  notes        String?        @db.Text
+  isConfirmed  Boolean        @default(true) @map("is_confirmed")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime?      @map("deleted_at") @db.Timestamptz
+
+  // Relaciones
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  aiParsingLog AiParsingLog?
+
+  @@index([userId, movementDate(sort: Desc)], name: "idx_movements_user_active")
+  @@index([userId, type], name: "idx_movements_user_type")
+  @@index([userId, categoryId], name: "idx_movements_user_category")
+  @@index([userId, movementDate], name: "idx_movements_user_date_range")
+  @@index([userId], name: "idx_movements_deleted_at")
+  @@map("movements")
+}
+
+/// Logs de procesamiento de lenguaje natural con Gemini API.
+/// Registro de auditoría de cada interacción con la IA.
+model AiParsingLog {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  movementId        String       @unique @map("movement_id") @db.Uuid
+  inputText         String       @map("input_text") @db.Text
+  promptSent        String       @map("prompt_sent") @db.Text
+  rawResponse       Json?        @map("raw_response") @db.JsonB
+  parsedAmount      Decimal?     @map("parsed_amount") @db.Decimal(12, 2)
+  parsedDescription String?      @map("parsed_description") @db.VarChar(500)
+  parsedCategory    String?      @map("parsed_category") @db.VarChar(100)
+  parsedType        MovementType? @map("parsed_type")
+  confidenceScore   Decimal?     @map("confidence_score") @db.Decimal(3, 2)
+  wasSuccessful     Boolean      @default(false) @map("was_successful")
+  errorMessage      String?      @map("error_message") @db.Text
+  modelUsed         String       @default("gemini-2.0-flash") @map("model_used") @db.VarChar(100)
+  responseTimeMs    Int?         @map("response_time_ms")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relaciones
+  movement Movement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+
+  @@index([wasSuccessful, createdAt(sort: Desc)], name: "idx_ai_logs_successful_date")
+  @@index([createdAt(sort: Desc)], name: "idx_ai_logs_created_at")
+  @@map("ai_parsing_logs")
+}
+
+/// Metas de ahorro del usuario.
+/// Implementa ciclo de vida: ACTIVE → COMPLETED → ARCHIVED.
+model SavingGoal {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String     @map("user_id") @db.Uuid
+  name          String     @db.VarChar(200)
+  description   String?    @db.Text
+  targetAmount  Decimal    @map("target_amount") @db.Decimal(12, 2)
+  currentAmount Decimal    @default(0.00) @map("current_amount") @db.Decimal(12, 2)
+  status        GoalStatus @default(ACTIVE)
+  targetDate    DateTime?  @map("target_date") @db.Date
+  icon          String?    @db.VarChar(100)
+  color         String?    @default("#3B82F6") @db.Char(7)
+  completedAt   DateTime?  @map("completed_at") @db.Timestamptz
+  archivedAt    DateTime?  @map("archived_at") @db.Timestamptz
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime?  @map("deleted_at") @db.Timestamptz
+
+  // Relaciones
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contributions GoalContribution[]
+
+  @@index([userId, status], name: "idx_saving_goals_user_status")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_saving_goals_user_active")
+  @@index([targetDate], name: "idx_saving_goals_target_date")
+  @@map("saving_goals")
+}
+
+/// Aportes monetarios hacia una meta de ahorro.
+/// Cada aporte incrementa el progreso de la meta.
+model GoalContribution {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  goalId           String    @map("goal_id") @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  amount           Decimal   @db.Decimal(12, 2)
+  notes            String?   @db.VarChar(500)
+  contributionDate DateTime  @default(dbgenerated("CURRENT_DATE")) @map("contribution_date") @db.Date
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relaciones
+  goal SavingGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, contributionDate(sort: Desc)], name: "idx_goal_contributions_goal_active")
+  @@index([userId, createdAt(sort: Desc)], name: "idx_goal_contributions_user")
+  @@map("goal_contributions")
+}
+
+/// Registro inmutable de eventos del sistema para auditoría.
+/// Tabla append-only: nunca se actualiza ni elimina.
+model AuditLog {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String?     @map("user_id") @db.Uuid
+  action     AuditAction
+  entityType String?     @map("entity_type") @db.VarChar(100)
+  entityId   String?     @map("entity_id") @db.Uuid
+  ipAddress  String?     @map("ip_address") @db.VarChar(45)
+  userAgent  String?     @map("user_agent") @db.VarChar(500)
+  metadata   Json?       @default("{}") @db.JsonB
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relaciones
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)], name: "idx_audit_logs_user_date")
+  @@index([action, createdAt(sort: Desc)], name: "idx_audit_logs_action_date")
+  @@index([entityType, entityId], name: "idx_audit_logs_entity")
+  @@index([createdAt], name: "idx_audit_logs_created_at_brin", type: Brin)
+  @@index([metadata], name: "idx_audit_logs_metadata_gin", type: Gin)
+  @@map("audit_logs")
+}
