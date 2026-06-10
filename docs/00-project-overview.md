@@ -67,7 +67,7 @@ Desarrollar una aplicación web full stack que permita a los usuarios gestionar 
 | Backend | Node.js + Express + TypeScript |
 | Base de datos | PostgreSQL |
 | ORM | Prisma |
-| Inteligencia Artificial | Google Gemini API (`gemini-2.0-flash`) |
+| Inteligencia Artificial | Google Gemini API (`gemini-3.5-flash`) |
 | Autenticación | JWT + Refresh Tokens |
 | Tests y Cobertura | Vitest + Istanbul |
 | Cliente DB | DBeaver |
@@ -89,7 +89,7 @@ Desarrollar una aplicación web full stack que permita a los usuarios gestionar 
                                      ▼
                             ┌─────────────────┐
                             │  Google Gemini  │
-                            │  gemini-2.0-    │
+                            │  gemini-3.0-    │
                             │  flash (gratis) │
                             └─────────────────┘
 ```
