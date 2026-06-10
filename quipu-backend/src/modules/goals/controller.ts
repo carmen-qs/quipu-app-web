@@ -16,7 +16,7 @@ export class GoalsController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
       const goals = await goalsService.getGoals(req.userId);
-      res.status(200).json(goals);
+      res.status(200).json({ data: goals });
     } catch (error) {
       next(error);
     }

@@ -10,7 +10,7 @@ export const createGoalSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200, 'Name too long'),
   description: z.string().optional(),
   targetAmount: z.number().positive('Target amount must be positive').max(999999.99, 'Amount too large'),
-  targetDate: z.string().optional().transform((val: any) => val ? new Date(val) : undefined),
+  targetDate: z.string().optional().transform((val: any) => val ? new Date(val.includes('T') ? val : val + 'T12:00:00') : undefined),
   icon: z.string().optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format').optional(),
 });
@@ -20,7 +20,7 @@ export const updateGoalSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200, 'Name too long').optional(),
   description: z.string().optional(),
   targetAmount: z.number().positive('Target amount must be positive').max(999999.99, 'Amount too large').optional(),
-  targetDate: z.string().optional().transform((val: any) => val ? new Date(val) : undefined),
+  targetDate: z.string().optional().transform((val: any) => val ? new Date(val.includes('T') ? val : val + 'T12:00:00') : undefined),
   icon: z.string().optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format').optional(),
 }).refine((data: any) => Object.keys(data).length > 0, {
