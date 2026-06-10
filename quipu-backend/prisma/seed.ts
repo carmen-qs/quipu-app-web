@@ -27,6 +27,7 @@ async function main() {
   const categories = [
     // EXPENSE categories
     {
+      slug: 'system-food',
       name: 'Alimentación',
       description: 'Restaurantes, mercados, supermercados y comida en general',
       icon: '🍽️',
@@ -35,6 +36,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-transport',
       name: 'Transporte',
       description: 'Taxi, bus, combustible, transporte público y privado',
       icon: '🚌',
@@ -43,6 +45,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-health',
       name: 'Salud',
       description: 'Medicamentos, consultas médicas, laboratorios y farmacia',
       icon: '🏥',
@@ -51,6 +54,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-education',
       name: 'Educación',
       description: 'Cursos, libros, matrículas, materiales educativos',
       icon: '📚',
@@ -59,6 +63,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-entertainment',
       name: 'Entretenimiento',
       description: 'Cine, streaming, eventos, hobbies y actividades recreativas',
       icon: '🎬',
@@ -67,6 +72,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-services',
       name: 'Servicios',
       description: 'Luz, agua, internet, telefonía e internet del hogar',
       icon: '💡',
@@ -75,6 +81,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-clothing',
       name: 'Vestimenta',
       description: 'Ropa, calzado y accesorios personales',
       icon: '👕',
@@ -83,6 +90,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-housing',
       name: 'Hogar',
       description: 'Alquiler, mobiliario, artículos del hogar y mantenimiento',
       icon: '🏠',
@@ -91,6 +99,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-savings',
       name: 'Ahorro',
       description: 'Depósitos en cuentas de ahorro y fondos de emergencia',
       icon: '🏦',
@@ -99,6 +108,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-other',
       name: 'Otros gastos',
       description: 'Gastos varios no clasificados en otras categorías',
       icon: '📦',
@@ -108,6 +118,7 @@ async function main() {
     },
     // INCOME categories
     {
+      slug: 'system-salary',
       name: 'Sueldo',
       description: 'Salario mensual o quincenal del empleo principal',
       icon: '💼',
@@ -116,6 +127,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-freelance',
       name: 'Freelance',
       description: 'Ingresos por trabajos independientes o por proyecto',
       icon: '💻',
@@ -124,6 +136,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-business',
       name: 'Negocio',
       description: 'Ganancias de negocio propio o emprendimiento',
       icon: '🏪',
@@ -132,6 +145,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-investments',
       name: 'Inversiones',
       description: 'Dividendos, intereses, retornos de inversión',
       icon: '📈',
@@ -140,6 +154,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-transfers',
       name: 'Transferencias',
       description: 'Transferencias recibidas de familiares o amigos',
       icon: '💸',
@@ -148,6 +163,7 @@ async function main() {
       isSystem: true,
     },
     {
+      slug: 'system-other-income',
       name: 'Otros ingresos',
       description: 'Ingresos varios no clasificados en otras categorías',
       icon: '📥',

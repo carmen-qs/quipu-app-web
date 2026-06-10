@@ -143,6 +143,7 @@ model RefreshToken {
 model Category {
   id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId      String?      @map("user_id") @db.Uuid
+  slug        String?      @db.VarChar(100)
   name        String       @db.VarChar(100)
   description String?      @db.VarChar(255)
   icon        String?      @db.VarChar(100)
@@ -158,6 +159,7 @@ model Category {
   movements Movement[]
 
   @@unique([userId, name, type], name: "categories_name_user_unique")
+  @@unique([slug], name: "categories_slug_unique")
   @@index([userId], name: "idx_categories_user_id")
   @@index([type, isActive], name: "idx_categories_system")
   @@index([userId, type], name: "idx_categories_user_type")
