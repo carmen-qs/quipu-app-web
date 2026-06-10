@@ -1,11 +1,13 @@
 import { Wallet, User, LogOut, LayoutGrid, CreditCard, Target, Settings } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function Profile() {
   const navigate = useNavigate()
   const [userName, setUserName] = useState('')
   const [userEmail, setUserEmail] = useState('')
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const userStr = localStorage.getItem('user')
@@ -22,6 +24,16 @@ export default function Profile() {
     localStorage.removeItem('user')
     navigate('/login')
   }
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-900 flex">
@@ -51,12 +63,6 @@ export default function Profile() {
             <span className="font-medium">Perfil</span>
           </Link>
         </nav>
-        <div className="p-4 border-t border-gray-700">
-          <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors w-full">
-            <LogOut className="w-5 h-5" />
-            <span>Cerrar sesión</span>
-          </button>
-        </div>
       </aside>
 
       {/* Main Content */}
@@ -68,9 +74,32 @@ export default function Profile() {
               <h1 className="text-2xl font-medium text-white">Perfil</h1>
               <p className="text-gray-400 text-sm">Configura tu cuenta</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center">
-              <User className="w-5 h-5 text-white" />
-            </div>
+            <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center hover:bg-emerald-500 transition-colors focus:outline-none"
+                >
+                  <User className="w-5 h-5 text-white" />
+                </button>
+                {showUserMenu && (
+                  <div className="absolute right-0 top-12 w-56 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-700">
+                      <p className="text-sm font-medium text-white">{userName}</p>
+                      <p className="text-xs text-gray-400 truncate">{userEmail}</p>
+                    </div>
+                    <div className="py-1">
+                      <button onClick={() => { setShowUserMenu(false); navigate('/perfil') }} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+                        <User className="w-4 h-4" />Mi perfil
+                      </button>
+                      <div className="border-t border-gray-700 mt-1 pt-1">
+                        <button onClick={() => { setShowUserMenu(false); handleLogout() }} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors">
+                          <LogOut className="w-4 h-4" />Cerrar sesión
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
           </div>
         </header>
 

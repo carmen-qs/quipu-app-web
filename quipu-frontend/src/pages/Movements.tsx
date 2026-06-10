@@ -1,65 +1,73 @@
-import { useState } from 'react'
-import { Wallet, User, LogOut, Search, X, Sparkles, LayoutGrid, CreditCard, Target, Settings } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Wallet, User, LogOut, Search, Plus, LayoutGrid, CreditCard, Target, Settings, Trash2, Edit2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 
+const CATEGORY_ICONS: { [key: string]: string } = {
+  'system-food': '🍽',
+  'system-transport': '🚗',
+  'system-health': '💊',
+  'system-housing': '🏠',
+  'system-education': '📚',
+  'system-entertainment': '🎬',
+  'system-clothing': '👕',
+  'system-services': '💡',
+  'system-income': '💰',
+  'system-other': '📦'
+}
+
 export default function Movements() {
   const navigate = useNavigate()
-  const [showAIModal, setShowAIModal] = useState(false)
-  const [aiText, setAiText] = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiParsed, setAiParsed] = useState<any>(null)
-  const [aiError, setAiError] = useState('')
+  const [movements, setMovements] = useState<any[]>([])
+  const [categories, setCategories] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedMonth, setSelectedMonth] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedType, setSelectedType] = useState('')
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [movementToDelete, setMovementToDelete] = useState<any>(null)
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    fetchMovements()
+    fetchCategories()
+  }, [])
 
-  const handleParseText = async () => {
-    setAiError('')
-    setAiLoading(true)
-    
+  const fetchMovements = async () => {
     try {
-      const response = await api.post('/movements/parse', { text: aiText })
-      setAiParsed(response.data)
+      const response = await api.get('/movements')
+       console.log("analisis del error: ",response.data)
+      const movementsData = response.data.data ?? []
+      setMovements(Array.isArray(movementsData) ? movementsData : [])
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Error al procesar texto')
+      console.error('Error fetching movements:', err)
+      setMovements([])
     } finally {
-      setAiLoading(false)
+      setLoading(false)
     }
   }
 
-  const handleCreateMovement = async () => {
-    if (!aiParsed) return
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/categories')
+      setCategories(response.data)
+    } catch (err) {
+      console.error('Error fetching categories:', err)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!movementToDelete) return
     
     try {
-      // Get category ID from category name (simplified - in real app would fetch categories)
-      const categoryMap: { [key: string]: string } = {
-        'Alimentación': 'system-food',
-        'Transporte': 'system-transport',
-        'Salud': 'system-health',
-        'Educación': 'system-education',
-        'Entretenimiento': 'system-entertainment',
-        'Vivienda': 'system-housing',
-        'Ropa': 'system-clothing',
-        'Otros': 'system-other'
-      }
-      
-      const categoryId = categoryMap[aiParsed.category] || 'system-other'
-      
-      await api.post('/movements', {
-        type: aiParsed.type,
-        amount: aiParsed.amount,
-        description: aiParsed.description,
-        categoryId: categoryId,
-        source: 'AI_PARSED',
-        originalText: aiText
-      })
-      
-      // Close modal and refresh
-      setShowAIModal(false)
-      setAiText('')
-      setAiParsed(null)
-      window.location.reload()
+      await api.delete(`/movements/${movementToDelete.id}`)
+      setMovements(movements.filter(m => m.id !== movementToDelete.id))
+      setShowDeleteModal(false)
+      setMovementToDelete(null)
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Error al crear movimiento')
+      console.error('Error deleting movement:', err)
     }
   }
 
@@ -68,6 +76,53 @@ export default function Movements() {
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
     navigate('/login')
+  }
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+
+  console.log(movements);
+console.log(typeof movements);
+console.log(Array.isArray(movements));
+  // Filter movements
+  const filteredMovements = movements.filter(movement => {
+    const matchesSearch = movement.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          movement.category?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = !selectedCategory || movement.categoryId === selectedCategory
+    const matchesType = !selectedType || movement.type === selectedType
+    
+    return matchesSearch && matchesCategory && matchesType
+  })
+
+  // Group by date
+  const groupedMovements = filteredMovements.reduce((groups: any, movement) => {
+    const [year, month, day] = movement.movementDate.split('-'); const date = new Date(parseInt(year), parseInt(month)-1, parseInt(day)).toLocaleDateString('es-ES', { 
+      day: 'numeric', 
+      month: 'long',
+      year: 'numeric'
+    })
+    if (!groups[date]) {
+      groups[date] = []
+    }
+    groups[date].push(movement)
+    return groups
+  }, {})
+
+  const getCategoryIcon = (categoryId: string) => {
+    return CATEGORY_ICONS[categoryId] || '📦'
+  }
+
+  const getCategoryName = (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId)
+    return category?.name || 'Sin categoría'
   }
 
   return (
@@ -98,12 +153,6 @@ export default function Movements() {
             <span>Perfil</span>
           </Link>
         </nav>
-        <div className="p-4 border-t border-gray-700">
-          <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors w-full">
-            <LogOut className="w-5 h-5" />
-            <span>Cerrar sesión</span>
-          </button>
-        </div>
       </aside>
 
       {/* Main Content */}
@@ -113,18 +162,41 @@ export default function Movements() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-medium text-white">Movimientos</h1>
-              <p className="text-gray-400 text-sm">Gestiona tus transacciones</p>
+              <p className="text-gray-400 text-sm">Historial de transacciones</p>
             </div>
             <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setShowAIModal(true)}
+              <Link 
+                to="/movimientos/nuevo"
                 className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>Registrar con IA</span>
-              </button>
-              <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center">
-                <User className="w-5 h-5 text-white" />
+                <Plus className="w-4 h-4" />
+                <span>Nuevo movimiento</span>
+              </Link>
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center hover:bg-emerald-500 transition-colors focus:outline-none"
+                >
+                  <User className="w-5 h-5 text-white" />
+                </button>
+                {showUserMenu && (
+                  <div className="absolute right-0 top-12 w-56 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-700">
+                      <p className="text-sm font-medium text-white">{JSON.parse(localStorage.getItem('user') || '{}').name || 'Usuario'}</p>
+                      <p className="text-xs text-gray-400 truncate">{JSON.parse(localStorage.getItem('user') || '{}').email || ''}</p>
+                    </div>
+                    <div className="py-1">
+                      <button onClick={() => { setShowUserMenu(false); navigate('/perfil') }} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+                        <User className="w-4 h-4" />Mi perfil
+                      </button>
+                      <div className="border-t border-gray-700 mt-1 pt-1">
+                        <button onClick={() => { setShowUserMenu(false); handleLogout() }} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors">
+                          <LogOut className="w-4 h-4" />Cerrar sesión
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -132,161 +204,135 @@ export default function Movements() {
 
         {/* Content */}
         <main className="flex-1 p-8 overflow-auto">
+          {/* Search and Filters */}
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 mb-6">
+            <div className="flex gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar movimientos"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full h-10 pl-10 pr-3 border border-gray-600 rounded-lg focus:outline-none focus:border-emerald-500 bg-gray-700 text-white placeholder-gray-400"
+                />
+              </div>
+              <select 
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="h-10 px-3 border border-gray-600 rounded-lg focus:outline-none focus:border-emerald-500 bg-gray-700 text-white"
+              >
+                <option value="">Todos los meses</option>
+                <option value="2026-05">Mayo 2026</option>
+                <option value="2026-04">Abril 2026</option>
+                <option value="2026-03">Marzo 2026</option>
+              </select>
+              <select 
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="h-10 px-3 border border-gray-600 rounded-lg focus:outline-none focus:border-emerald-500 bg-gray-700 text-white"
+              >
+                <option value="">Todas las categorías</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+              <select 
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="h-10 px-3 border border-gray-600 rounded-lg focus:outline-none focus:border-emerald-500 bg-gray-700 text-white"
+              >
+                <option value="">Todos los tipos</option>
+                <option value="EXPENSE">Gastos</option>
+                <option value="INCOME">Ingresos</option>
+              </select>
+            </div>
+          </div>
 
-        {/* Search and Filters */}
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 mb-6">
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar movimientos"
-                className="w-full h-10 pl-10 pr-3 border border-gray-600 rounded-lg focus:outline-none focus:border-emerald-500 bg-gray-700 text-white placeholder-gray-400"
-              />
+          {/* Movements List */}
+          {loading ? (
+            <div className="text-center text-gray-400 py-8">Cargando movimientos...</div>
+          ) : Object.keys(groupedMovements).length === 0 ? (
+            <div className="bg-gray-800 rounded-xl border border-gray-700 p-8 text-center">
+              <p className="text-gray-400">No se encontraron movimientos</p>
             </div>
-            <select className="h-10 px-3 border border-gray-600 rounded-lg focus:outline-none focus:border-emerald-500 bg-gray-700 text-white">
-              <option>Mayo 2026</option>
-            </select>
-            <select className="h-10 px-3 border border-gray-600 rounded-lg focus:outline-none focus:border-emerald-500 bg-gray-700 text-white">
-              <option>Todas las categorías</option>
-            </select>
-            <select className="h-10 px-3 border border-gray-600 rounded-lg focus:outline-none focus:border-emerald-500 bg-gray-700 text-white">
-              <option>Tipo</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Movements List */}
-        <div className="bg-gray-800 rounded-xl border border-gray-700">
-          <div className="p-4 border-b border-gray-700">
-            <p className="text-sm font-medium text-white">27 de mayo</p>
-          </div>
-          <div className="divide-y divide-gray-700">
-            <div className="p-4 flex justify-between items-center hover:bg-gray-700/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center">
-                  <span className="text-lg">💊</span>
+          ) : (
+            Object.entries(groupedMovements).map(([date, dayMovements]: [string, any]) => (
+              <div key={date} className="bg-gray-800 rounded-xl border border-gray-700 mb-4">
+                <div className="p-4 border-b border-gray-700">
+                  <p className="text-sm font-medium text-white">{date}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-white">Medicamentos gripe</p>
-                  <p className="text-xs text-gray-400">Salud · 15:30</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <p className="text-sm font-medium text-red-400">-S/ 45</p>
-                <div className="flex gap-2">
-                  <button className="text-gray-400 hover:text-white">✏️</button>
-                  <button className="text-gray-400 hover:text-red-400">🗑</button>
-                </div>
-              </div>
-            </div>
-            <div className="p-4 flex justify-between items-center hover:bg-gray-700/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center">
-                  <span className="text-lg">🍽</span>
-                </div>
-                <div>
-                  <p className="text-sm text-white">Almuerzo menú día</p>
-                  <p className="text-xs text-gray-400">Alimentación · 13:00</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <p className="text-sm font-medium text-red-400">-S/ 12</p>
-                <div className="flex gap-2">
-                  <button className="text-gray-400 hover:text-white">✏️</button>
-                  <button className="text-gray-400 hover:text-red-400">🗑</button>
+                <div className="divide-y divide-gray-700">
+                  {dayMovements.map((movement: any) => (
+                    <div key={movement.id} className="p-4 flex justify-between items-center hover:bg-gray-700/50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{backgroundColor: movement.category?.color ? movement.category.color + "33" : movement.type === "INCOME" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}}>
+                          <span className="text-lg">{movement.category?.icon || getCategoryIcon(movement.categoryId)}</span>
+                        </div>
+                        <div>
+                          <p className="text-sm text-white">{movement.description}</p>
+                          <p className="text-xs text-gray-400">{getCategoryName(movement.categoryId)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <p className={`text-sm font-medium ${movement.type === 'INCOME' ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {movement.type === 'INCOME' ? '+' : '-'}S/ {movement.amount}
+                        </p>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => navigate(`/movimientos/${movement.id}/editar`)}
+                            className="text-gray-400 hover:text-white"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setMovementToDelete(movement)
+                              setShowDeleteModal(true)
+                            }}
+                            className="text-gray-400 hover:text-red-400"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          </div>
-          <div className="p-4 border-t border-gray-700">
-            <p className="text-sm text-gray-400 text-center">Mostrando 2 de 47 · Cargar más</p>
-          </div>
-        </div>
+            ))
+          )}
         </main>
       </div>
 
-      {/* AI Modal */}
-      {showAIModal && (
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && movementToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 border border-gray-700">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-medium text-white flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-emerald-400" />
-                Registrar con IA
-              </h2>
-              <button onClick={() => setShowAIModal(false)} className="text-gray-400 hover:text-white">
-                <X className="w-5 h-5" />
+            <h2 className="text-lg font-medium text-white mb-4">¿Eliminar este movimiento?</h2>
+            <p className="text-sm text-gray-400 mb-2">{movementToDelete.description}</p>
+            <p className="text-sm text-gray-400 mb-6">
+              S/ {movementToDelete.amount} · {new Date(movementToDelete.movementDate).toLocaleDateString('es-ES')}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setMovementToDelete(null)
+                }}
+                className="flex-1 py-2 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Eliminar
               </button>
             </div>
-
-            {!aiParsed ? (
-              <>
-                <p className="text-sm text-gray-400 mb-4">
-                  Describe tu movimiento en lenguaje natural, por ejemplo: "gasté 35 soles en almuerzo"
-                </p>
-                <textarea
-                  value={aiText}
-                  onChange={(e) => setAiText(e.target.value)}
-                  placeholder="Escribe tu movimiento aquí..."
-                  className="w-full h-32 p-3 border border-gray-600 rounded-lg focus:outline-none focus:border-emerald-500 bg-gray-700 text-white placeholder-gray-400 resize-none"
-                  maxLength={500}
-                />
-                {aiError && (
-                  <p className="text-sm text-red-400 mt-2">{aiError}</p>
-                )}
-                <button
-                  onClick={handleParseText}
-                  disabled={aiLoading || !aiText.trim()}
-                  className="w-full mt-4 bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {aiLoading ? 'Procesando...' : 'Procesar con IA'}
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-gray-400 mb-4">
-                  La IA interpretó tu movimiento. Confirma o edita antes de guardar:
-                </p>
-                <div className="space-y-3 mb-4">
-                  <div className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
-                    <span className="text-sm text-gray-400">Tipo:</span>
-                    <span className={`text-sm font-medium ${aiParsed.type === 'INCOME' ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {aiParsed.type === 'INCOME' ? 'Ingreso' : 'Gasto'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
-                    <span className="text-sm text-gray-400">Monto:</span>
-                    <span className="text-sm font-medium text-white">S/ {aiParsed.amount}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
-                    <span className="text-sm text-gray-400">Descripción:</span>
-                    <span className="text-sm font-medium text-white">{aiParsed.description}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
-                    <span className="text-sm text-gray-400">Categoría:</span>
-                    <span className="text-sm font-medium text-white">{aiParsed.category}</span>
-                  </div>
-                </div>
-                {aiError && (
-                  <p className="text-sm text-red-400 mb-4">{aiError}</p>
-                )}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setAiParsed(null)}
-                    className="flex-1 py-2 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors text-white"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={handleCreateMovement}
-                    className="flex-1 bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 transition-colors"
-                  >
-                    Confirmar
-                  </button>
-                </div>
-              </>
-            )}
           </div>
         </div>
       )}
