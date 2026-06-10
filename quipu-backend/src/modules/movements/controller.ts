@@ -18,7 +18,7 @@ export class MovementsController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
       const movements = await movementsService.getMovements(req.userId);
-      res.status(200).json(movements);
+      res.status(200).json({ data: movements });
     } catch (error) {
       next(error);
     }

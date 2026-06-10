@@ -19,11 +19,11 @@ export const createMovementSchema = z.object({
     .max(500, 'Description is too long'),
   categoryId: z
     .string()
-    .uuid('Invalid category ID'),
+    .min(1, 'Category ID is required'),
   movementDate: z
     .string()
     .optional()
-    .transform((val: any) => val ? new Date(val) : new Date()), // ✨ Corregido val: any
+    .transform((val: any) => val ? new Date(val + 'T12:00:00') : new Date()), // ✨ Corregido val: any
   source: z.enum(['AI_PARSED', 'MANUAL']).default('MANUAL'),
   notes: z.string().optional(),
 });
@@ -37,7 +37,7 @@ export const updateMovementSchema = z.object({
   movementDate: z
     .string()
     .optional()
-    .transform((val: any) => val ? new Date(val) : new Date(val)), // ✨ Corregido val: any
+    .transform((val: any) => val ? new Date(val + 'T12:00:00') : undefined), // ✨ Corregido val: any
   notes: z.string().optional(),
 })
 .refine((data: any) => Object.keys(data).length > 0, { // ✨ Corregido data: any

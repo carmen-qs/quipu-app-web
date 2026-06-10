@@ -46,11 +46,12 @@ Responde ÚNICAMENTE en formato JSON así:
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash:generateContent?key=${config.gemini.apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'x-goog-api-key': config.gemini.apiKey,
             },
             body: JSON.stringify({
               contents: [{
@@ -63,14 +64,15 @@ Responde ÚNICAMENTE en formato JSON así:
         );
 
         if (!response.ok) {
-          if (response.status === 429 && attempt < maxRetries - 1) {
-            // Rate limit error - wait with exponential backoff
-            const waitTime = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
-            console.log(`Rate limit hit, retrying in ${waitTime}ms (attempt ${attempt + 1}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            continue;
-          }
-          throw new Error(`Gemini API error: ${response.status}`);
+            const errorText = await response.text();
+
+  console.error('========== GEMINI RESPONSE ==========');
+  console.error(errorText);
+  console.error('=====================================');
+
+  throw new Error(
+    `Gemini API error: ${response.status} - ${errorText}`
+  );
         }
 
         const data = await response.json() as any;

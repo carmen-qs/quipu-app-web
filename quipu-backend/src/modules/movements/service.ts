@@ -78,7 +78,14 @@ export class MovementsService {
       ],
     });
 
-    return movements;
+    // Format dates for frontend and ensure amount is number
+    console.log('movementDate raw:', movements[0]?.movementDate); return movements.map(m => ({
+      ...m,
+      amount: Number(m.amount) || 0,
+      movementDate: m.movementDate ? `${m.movementDate.getUTCFullYear()}-${String(m.movementDate.getUTCMonth()+1).padStart(2,'0')}-${String(m.movementDate.getUTCDate()).padStart(2,'0')}` : null,
+      createdAt: m.createdAt ? new Date(m.createdAt).toISOString() : null,
+      updatedAt: m.updatedAt ? new Date(m.updatedAt).toISOString() : null,
+    }));
   }
 
   async getMovementById(userId: string, movementId: string) {
@@ -110,15 +117,26 @@ export class MovementsService {
   }
 
   async createMovement(userId: string, data: CreateMovementData) {
+    // Check if categoryId is a slug (text) or UUID
+    const isSlug = !data.categoryId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    
     // Verify category exists and belongs to user or is system category
     const category = await prisma.category.findFirst({
-      where: {
-        id: data.categoryId,
-        OR: [
-          { userId },
-          { isSystem: true },
-        ],
-      },
+      where: isSlug 
+        ? {
+            slug: data.categoryId,
+            OR: [
+              { userId },
+              { isSystem: true },
+            ],
+          }
+        : {
+            id: data.categoryId,
+            OR: [
+              { userId },
+              { isSystem: true },
+            ],
+          },
     });
 
     if (!category) {
@@ -133,7 +151,7 @@ export class MovementsService {
     const movement = await prisma.movement.create({
       data: {
         userId,
-        categoryId: data.categoryId,
+        categoryId: category.id, // Use the actual UUID from the category
         type: data.type,
         amount: data.amount,
         description: data.description,

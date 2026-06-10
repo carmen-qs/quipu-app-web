@@ -63,6 +63,7 @@ describe('AIService', () => {
           return Promise.resolve({
             ok: false,
             status: 429,
+            text: async () => 'Too Many Requests',
           })
         }
         return Promise.resolve({
@@ -99,6 +100,7 @@ describe('AIService', () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 429,
+        text: async () => 'Too Many Requests',
       })
 
       await expect(aiService.parseText('test')).rejects.toThrow('Gemini API error: 429')
